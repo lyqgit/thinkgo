@@ -19,19 +19,29 @@ type ormsql struct{
 	conditionOrder string
 	conditionWhere string
 	WhereVal string
+	term string
+	pagination string
+	unionQuery string
 	out []map[string]string
 	sqlString string
 }
 
 func(m *ormsql)table(database string){
 	m.database = database
-	m.row = ""
+	m.init()
+}
+
+func(m *ormsql)init(){
+	m.row = "*"
 	m.conditionOrder = ""
 	m.conditionQuery = ""
 	m.conditionRead = ""
 	m.conditionVal = ""
 	m.conditionWhere = ""
 	m.WhereVal = ""
+	m.term = ""
+	m.pagination = ""//分页
+	m.unionQuery = ""//联合查询
 	m.out = nil
 }
 
@@ -41,14 +51,35 @@ func(m *ormsql)where(condition ...interface{}){
 			for k,v := range t{
 				m.conditionWhere += k+"=?,"
 				m.WhereVal += v+","
+				if sign := condition[1].(string);sign != ""{
+					switch sign{
+						case "or":
+							m.conditionQuery += k+" = "+v+" or "
+							m.term = " or "
+						break
+						default:
+							m.conditionQuery += k+" = "+v+" and "
+							m.term = " and "
+						break
+					}
+				}
+				
 			}
 		break
 		case string:
-			if m.conditionRead == ""{
-				m.conditionWhere = condition[0].(string)+"=?,"
+			if condition[2].(string) != ""{
+				m.conditionQuery += t+" = "+condition[1].(string)+" "+condition[2].(string)+" "
+				m.term = " "+condition[2].(string)+" "
 			}else{
-				m.WhereVal = condition[1].(string)+","
+				if m.conditionRead == ""{
+					m.conditionWhere = condition[0].(string)+"=?,"
+				}else{
+					m.WhereVal = condition[1].(string)+","
+				}
+				m.conditionQuery = t+" = "+condition[1].(string)+" and "
+				m.term = " and "
 			}
+			
 		break
 	}
 }
@@ -80,7 +111,7 @@ func(m *ormsql)update(renew map[string]string)int64{
 	}
 	m.conditionRead = strings.TrimRight(m.conditionRead,",")
 	m.conditionVal = strings.TrimRight(m.conditionVal,",")
-	stmt,err := m.db.Prepare("update "+m.database+" set "+m.conditionRead+" where "+m.WhereVal)
+	stmt,err := m.db.Prepare("update "+m.database+" set "+m.conditionRead+" where "+m.conditionWhere)
 	sqlerr(err)
 	res,err := stmt.Exec(m.conditionVal+m.WhereVal)
 	sqlerr(err)
@@ -108,21 +139,61 @@ func(m *ormsql)insertGetId(add map[string]string)int64{
 func(m *ormsql)insertAll(addAll []map[string]string)int{
 	var num []int64
 	for _,add := range addAll{
-		for k,v := range add{
-			m.conditionRead += k+"=?,"
-			m.conditionVal += v+","
-		}
-		m.conditionRead = strings.TrimRight(m.conditionRead,",")
-		m.conditionVal = strings.TrimRight(m.conditionVal,",")
-		stmt,err := m.db.Prepare("insert "+m.database+" set "+m.conditionRead)
-		sqlerr(err)
-		res,err := stmt.Exec(m.conditionVal)
-		sqlerr(err)
-		Id,err := res.LastInsertId()
-		sqlerr(err)
+		Id := m.insertGetId(add)
 		num = append(num,Id)
 	}
 	return len(num)
+}
+
+func(m *ormsql)field(row string){
+	m.row = row
+}
+
+func(m *ormsql)alias(byname string){
+	m.database += " as "+byname
+}
+
+func(m *ormsql)join(database string,condition string,symbol string){
+	m.unionQuery = symbol+" join "+database+" on "+condition
+}
+
+func(m *ormsql)limit(page int,limit int)*ormsql{
+	switch m.sqltype{
+		case "mysql":
+			m.mysqllimit(page,limit)
+		break
+		case "sqlserver":
+			m.sqlserverlimit(page,limit)
+		break
+	}
+	return m
+}
+
+func(m *ormsql)read(){
+	switch m.sqltype{
+	case "mysql":
+		
+	break
+	case "sqlserver":
+		
+	break
+}
+	var rows *sql.Rows
+	if m.conditionQuery != ""{
+		m.sqlString = "select "+m.row+" from "+m.database+" "+m.unionQuery+" "+m.conditionQuery
+		rows,_ = m.db.Query(m.conditionQuery)
+	}else{
+		m.sqlString = "select "+m.row+" from "+m.database+" "+m.unionQuery
+		rows,_ = m.db.Query(m.conditionQuery)
+	}
+
+	columns,_ := rows.Columns()
+	scanArgs := make([]interface{},len(columns))
+	values := make([]interface{},len(columns))
+
+	for i := range values{
+		scanArgs[i] = &values[i]
+	}
 }
 
 
