@@ -170,38 +170,30 @@ func(m *ormsql)limit(page int,limit int)*ormsql{
 }
 
 func(m *ormsql)read(){
-	switch m.sqltype{
-	case "mysql":
-		
-	break
-	case "sqlserver":
-		
-	break
-}
-	var rows *sql.Rows
-	if m.conditionQuery != ""{
-		m.sqlString = "select "+m.row+" from "+m.database+" "+m.unionQuery+" "+m.conditionQuery
-		rows,_ = m.db.Query(m.conditionQuery)
-	}else{
-		m.sqlString = "select "+m.row+" from "+m.database+" "+m.unionQuery
-		rows,_ = m.db.Query(m.conditionQuery)
-	}
 
-	columns,_ := rows.Columns()
-	scanArgs := make([]interface{},len(columns))
-	values := make([]interface{},len(columns))
-
-	for i := range values{
-		scanArgs[i] = &values[i]
+	switch m.sqltype{//组装sql语句，根据不同数据库类型调用各自的查询方法
+		case "mysql":
+			
+		break
+		case "sqlserver":
+			
+		break
 	}
+	
 }
 
-
+func(m *ormsql)query(sqlString string){
+	
+}
 
 func sqlerr(err error){//输出错误
 	if err != nil{
 		fmt.Print(err)
 	}
+}
+
+func(m *ormsql)destruct(){
+	m.db.Close()
 }
 
 func Connect(driverName string,dataSourceName string)*ormsql{//连接数据库
